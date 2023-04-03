@@ -1,0 +1,21 @@
+[package]
+name = "complex_lib"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+wasm-bindgen = "*"
+
+[lib]
+name = "complex_lib"    # The name of the target.
+path = "lib/lib.rs"     # The source file of the target.
+edition = "2021"        # The edition of the target.
+crate-type = ["cdylib"] # The crate types to generate.
+#required-features = [] # Features required to build this target (N/A for lib).
+
+
+[profile.release]
+# This makes the compiled code faster and smaller, but it makes compiling slower,
+# so it's only enabled in release mode.
+lto = true
