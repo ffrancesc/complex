@@ -5,3 +5,4 @@
 Cargo.lock
 package-lock.json
 **/.DS_Store
+/.rust-analyzer
