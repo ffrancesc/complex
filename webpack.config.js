@@ -1,42 +1,35 @@
-const HtmlWebpackPlugin = require('html-webpack-plugin');
-const WasmPackWatcherPlugin = require('wasm-pack-watcher-plugin');
+const WasmPackPlugin = require('@wasm-tool/wasm-pack-plugin');
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
-
-const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 exports.default = {
-    mode: 'development',
+    mode: 'production',
     entry: ['./app/index.ts', './app/styles.css'],
     module: {
         rules: [
             {
                 test: /\.tsx?$/,
                 use: 'ts-loader',
-                exclude: /node_modules/,
+                exclude: /node_modules/
             },
             {
                 test: /\.css$/i,
-                use: ['style-loader', 'css-loader']
-            },
-        ],
+                use: [MiniCssExtractPlugin.loader, 'css-loader']
+            }
+        ]
     },
     experiments: {
         asyncWebAssembly: true,
     },
-    output: {
-        filename: 'index.js',
-        path: path.resolve(__dirname, 'dist'),
-    },
     plugins: [
-        new WasmPackWatcherPlugin({
-            sourceRoot: path.resolve(__dirname, 'lib'),
-            crateRoot: path.resolve(__dirname),
-            mode: 'dev'
+        new WasmPackPlugin({
+            crateDirectory: __dirname,
+            watchDirectories: ['./lib']
         }),
+        new MiniCssExtractPlugin(),
         new HtmlWebpackPlugin({
             template: './app/index.html',
-            favicon: './app/assets/favicon.png',
-        }),
-        new MiniCssExtractPlugin()
+            favicon: './app/assets/favicon.png'
+        })
     ]
 };

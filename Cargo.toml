@@ -1,13 +1,15 @@
 [package]
-name = "complex_lib"
-version = "0.1.0"
+name = "complex"
+version = "1.0.0"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/ffrancesc/complex"
+description = "Having fun by drawing complex-valued functions and fractals"
 
 [lib]
-path = "lib/lib.rs"     # The source file of the target.
-edition = "2021"        # The edition of the target.
-crate-type = ["cdylib"] # The crate types to generate.
-#required-features = [] # Features required to build this target (N/A for lib).
+path = "lib/lib.rs"
+edition = "2021"
+crate-type = ["cdylib"]
 
 
 [profile.release]

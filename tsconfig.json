@@ -1,6 +1,5 @@
 {
     "compilerOptions": {
-        "sourceMap": true,
         "noImplicitAny": true,
         "target": "es5",
         "module": "es6",
