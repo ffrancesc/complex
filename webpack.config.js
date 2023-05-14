@@ -1,10 +1,22 @@
 const WasmPackPlugin = require('@wasm-tool/wasm-pack-plugin');
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const sveltePreprocess = require("svelte-preprocess");
+
+const path = require('path');
+
 
 exports.default = {
     mode: 'production',
-    entry: ['./app/index.ts', './app/styles.css'],
+    entry: ['./app/main.ts', './app/styles.css'],
+    resolve: {
+        alias: {
+            svelte: path.dirname(require.resolve("svelte/package.json")),
+        },
+        extensions: [".mjs", ".js", ".ts", ".svelte"],
+        mainFields: ["svelte", "browser", "module", "main"],
+        conditionNames: ['svelte']
+    },
     module: {
         rules: [
             {
@@ -15,6 +27,22 @@ exports.default = {
             {
                 test: /\.css$/i,
                 use: [MiniCssExtractPlugin.loader, 'css-loader']
+            },
+            {
+                test: /\.svelte$/,
+                loader: "svelte-loader",
+                options: {
+                    emitCss: false,
+                    hotReload: true,
+                    preprocess: sveltePreprocess({
+                        tsconfigFile: "tsconfig.json",
+                    }),
+                    hotOptions: {
+                        noPreserveState: true,
+                        noReload: false,
+                        optimistic: false,
+                    },
+                },
             }
         ]
     },

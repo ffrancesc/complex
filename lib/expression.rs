@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use wasm_bindgen::convert::IntoWasmAbi;
+
 use crate::{algebra::Complex, algebra::Field};
 
 pub trait Function<T> {
@@ -10,10 +14,16 @@ pub trait Operator<T> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr<T, F, O> {
-    Variable,
+    Variable(Variable),
     Constant(T),
     Function(F, Box<Expr<T, F, O>>),
     Operator(O, Box<Expr<T, F, O>>, Box<Expr<T, F, O>>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Variable {
+    Z,
+    C,
 }
 
 impl<T, F, O> Expr<T, F, O>
@@ -22,9 +32,9 @@ where
     F: Function<T>,
     O: Operator<T>,
 {
-    pub fn eval(&self, t: &T) -> T {
+    pub fn eval(&self, t: &HashMap<Variable, T>) -> T {
         match &self {
-            Expr::Variable => t.clone(),
+            Expr::Variable(v) => t.get(v).expect("a").clone(),
             Expr::Constant(ct) => ct.clone(),
             Expr::Function(fun, exp) => {
                 let val = exp.eval(t);
@@ -79,10 +89,21 @@ where
     }
 }
 
-pub type ExprComplex = Expr<Complex<f32>, FieldFunction, FieldOperator>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ComplexFunction {
+    Re,
+    Im,
+    Abs,
+}
 
-impl Default for ExprComplex {
-    fn default() -> Self {
-        Expr::Variable
+impl Function<Complex<f32>> for ComplexFunction {
+    fn apply(&self, val: Complex<f32>) -> Complex<f32> {
+        match &self {
+            ComplexFunction::Re => val.re.into(),
+            ComplexFunction::Im => val.im.into(),
+            ComplexFunction::Abs => f32::sqrt(val.norm_sq()).into(),
+        }
     }
 }
+
+pub type ExprComplex = Expr<Complex<f32>, ComplexFunction, FieldOperator>;

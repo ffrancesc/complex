@@ -10,6 +10,7 @@
     },
     "devDependencies": {
         "@types/node": "^18.15.11",
+        "@tsconfig/svelte": "^4.0.1",
         "@wasm-tool/wasm-pack-plugin": "^1.7.0",
         "css-loader": "^6.7.3",
         "html-loader": "^4.2.0",
@@ -22,6 +23,10 @@
         "typescript": "^5.0.3",
         "webpack": "^5.77.0",
         "webpack-cli": "^5.0.1",
-        "webpack-dev-server": "^4.13.2"
+        "webpack-dev-server": "^4.13.2",
+        "svelte": "^3.59",
+        "svelte-check": "^2.4.2",
+        "svelte-loader": "^3.1.7",
+        "svelte-preprocess": "^5.0.3"
     }
 }

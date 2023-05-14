@@ -1,15 +1,18 @@
 use crate::{
     algebra::{Complex, Zero},
-    expression::{Expr, ExprComplex, FieldFunction, FieldOperator},
-    log,
+    expression::{ComplexFunction, Expr, ExprComplex, FieldOperator, Variable},
 };
 use wasm_bindgen::prelude::*;
 use web_sys::{WebGl2RenderingContext as WebGl2, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
+#[wasm_bindgen]
+#[derive(Clone, Copy)]
+pub enum DrawMode {
+    DomainColouring = 1,
+    ParameterStability = 2,
+}
 
-// crazy one: z*z*z-1*i-0.21
-// good one: (z*z+1)/(z*z-1)+z
-pub enum State {
+enum State {
     Loading,
     Invalid,
     Valid,
@@ -20,16 +23,18 @@ pub struct ComplexPlane {
     ctx: WebGl2,
 
     state: State,
-
-    center: Complex<f32>,
-    niter: i32,
-    xscale: f32,
     function: ExprComplex,
 
-    uniform_center: Option<WebGlUniformLocation>,
-    uniform_niter: Option<WebGlUniformLocation>,
-    uniform_xscale: Option<WebGlUniformLocation>,
-    uniform_yscale: Option<WebGlUniformLocation>,
+    draw_mode: DrawMode,
+    max_iter: i32,
+    xscale: f32,
+    center: Complex<f32>,
+
+    u_draw_mode: Option<WebGlUniformLocation>,
+    u_max_iter: Option<WebGlUniformLocation>,
+    u_resolution: Option<WebGlUniformLocation>,
+    u_scale: Option<WebGlUniformLocation>,
+    u_center: Option<WebGlUniformLocation>,
 
     last_dragged: Option<(i32, i32)>,
 }
@@ -37,7 +42,12 @@ pub struct ComplexPlane {
 #[wasm_bindgen]
 impl ComplexPlane {
     #[wasm_bindgen(constructor)]
-    pub fn new(ctx: WebGl2) -> Result<ComplexPlane, JsValue> {
+    pub fn new(
+        ctx: WebGl2,
+        function: &str,
+        draw_mode: DrawMode,
+        max_iter: i32,
+    ) -> Result<ComplexPlane, JsValue> {
         let buffer = ctx.create_buffer().ok_or("Failed to create buffer")?;
         ctx.bind_buffer(WebGl2::ARRAY_BUFFER, Some(&buffer));
 
@@ -57,24 +67,22 @@ impl ComplexPlane {
 
         let mut res = Self {
             ctx,
+
             state: State::Invalid,
-
-            function: ExprComplex::default(),
-
+            function: ExprComplex::Constant(Complex::O),
+            draw_mode,
+            max_iter,
             xscale: 1.0,
-            niter: 1,
             center: Complex::O,
 
-            uniform_center: None,
-            uniform_niter: None,
-            uniform_xscale: None,
-            uniform_yscale: None,
-
+            u_draw_mode: None,
+            u_max_iter: None,
+            u_resolution: None,
+            u_scale: None,
+            u_center: None,
             last_dragged: None,
         };
-
-        res.load_function()?;
-
+        res.set_function(function)?;
         Ok(res)
     }
 
@@ -89,16 +97,20 @@ impl ComplexPlane {
     }
 
     #[wasm_bindgen]
-    pub fn set_niter(&mut self, niter: i32) -> Result<(), JsValue> {
-        self.niter = niter;
-        log::info!("Received niter {}", niter);
+    pub fn set_draw_mode(&mut self, draw_mode: DrawMode) {
+        self.draw_mode = draw_mode;
         self.state = State::Invalid;
-        Ok(())
     }
 
     #[wasm_bindgen]
-    pub fn set_resolution(&mut self, width_px: i32, height_px: i32) {
-        self.ctx.viewport(0, 0, width_px, height_px);
+    pub fn set_max_iter(&mut self, max_iter: i32) {
+        self.max_iter = max_iter;
+        self.state = State::Invalid;
+    }
+
+    #[wasm_bindgen]
+    pub fn set_resolution(&mut self, client_width: i32, client_height: i32) {
+        self.ctx.viewport(0, 0, client_width, client_height);
         self.state = State::Invalid;
     }
 
@@ -135,9 +147,42 @@ impl ComplexPlane {
     }
 
     #[wasm_bindgen]
-    pub fn on_pointer_up(&mut self, _x: i32, _y: i32) {
+    pub fn on_pointer_up(&mut self) {
         self.last_dragged = None;
         self.state = State::Invalid;
+    }
+
+    #[wasm_bindgen]
+    pub fn display_value_at(&self, x: i32, y: i32) -> String {
+        self.get_complex_at(x, y).to_string()
+    }
+
+    #[wasm_bindgen]
+    pub fn draw(&mut self) {
+        if let State::Loading | State::Valid = self.state {
+            return;
+        }
+        // load uniforms
+        self.ctx
+            .uniform1i(self.u_draw_mode.as_ref(), self.draw_mode as i32);
+        self.ctx.uniform1i(self.u_max_iter.as_ref(), self.max_iter);
+        self.ctx.uniform2iv_with_i32_array(
+            self.u_resolution.as_ref(),
+            &[
+                self.ctx.drawing_buffer_width(),
+                self.ctx.drawing_buffer_height(),
+            ],
+        );
+        self.ctx
+            .uniform2fv_with_f32_array(self.u_center.as_ref(), &[self.center.re, self.center.im]);
+        self.ctx
+            .uniform2fv_with_f32_array(self.u_scale.as_ref(), &[self.xscale, self.yscale()]);
+
+        self.ctx.clear_color(0.0, 0.0, 0.0, 1.0);
+        self.ctx.clear(WebGl2::COLOR_BUFFER_BIT);
+
+        self.ctx.draw_arrays(WebGl2::TRIANGLE_FAN, 0, 4);
+        self.state = State::Valid;
     }
 
     fn get_complex_at(&self, x: i32, y: i32) -> Complex<f32> {
@@ -149,40 +194,6 @@ impl ComplexPlane {
             re: 2.0 * (x / buffer_width - 0.5) * self.xscale - self.center.re,
             im: -2.0 * (y / buffer_height - 0.5) * self.yscale() - self.center.im,
         }
-    }
-
-
-
-    #[wasm_bindgen]
-    pub fn display_image_at(&self, x: i32, y: i32) -> String {
-        let z = self.get_complex_at(x, y);
-        self.function.eval(&z).to_string()
-    }
-
-    #[wasm_bindgen]
-    pub fn display_value_at(&self, x: i32, y: i32) -> String {
-        self.get_complex_at(x, y).to_string()
-    }
-
-
-    #[wasm_bindgen]
-    pub fn draw(&mut self) {
-        if let State::Loading | State::Valid = self.state {
-            return;
-        }
-        self.ctx.clear_color(0.0, 0.0, 0.0, 1.0);
-        self.ctx.clear(WebGl2::COLOR_BUFFER_BIT);
-        self.ctx.uniform2fv_with_f32_array(
-            self.uniform_center.as_ref(),
-            &[self.center.re, self.center.im],
-        );
-        self.ctx.uniform1i(self.uniform_niter.as_ref(), self.niter);
-        self.ctx
-            .uniform1f(self.uniform_xscale.as_ref(), self.xscale);
-        self.ctx
-            .uniform1f(self.uniform_yscale.as_ref(), self.yscale());
-        self.ctx.draw_arrays(WebGl2::TRIANGLE_FAN, 0, 4);
-        self.state = State::Valid;
     }
 
     fn yscale(&self) -> f32 {
@@ -208,7 +219,7 @@ impl ComplexPlane {
             fragment_src.replace_range(l..r + end_mark.len(), &snippet);
         }
         let frag_shader = compile_shader(&self.ctx, WebGl2::FRAGMENT_SHADER, &fragment_src)?;
-        log::info!("Using fragment shader\n: {fragment_src} ");
+        //log::info!("Using fragment shader\n: {fragment_src} ");
 
         // link and bind program
         let program = link_program(&self.ctx, &vert_shader, &frag_shader)?;
@@ -221,11 +232,11 @@ impl ComplexPlane {
         self.ctx.enable_vertex_attrib_array(pos);
 
         // retrieve uniform locations
-        self.uniform_center = self.ctx.get_uniform_location(&program, "center");
-        self.uniform_xscale = self.ctx.get_uniform_location(&program, "xscale");
-        self.uniform_yscale = self.ctx.get_uniform_location(&program, "yscale");
-        self.uniform_niter = self.ctx.get_uniform_location(&program, "niter");
-
+        self.u_center = self.ctx.get_uniform_location(&program, "center");
+        self.u_scale = self.ctx.get_uniform_location(&program, "scale");
+        self.u_max_iter = self.ctx.get_uniform_location(&program, "max_iter");
+        self.u_draw_mode = self.ctx.get_uniform_location(&program, "draw_mode");
+        self.u_resolution = self.ctx.get_uniform_location(&program, "resolution");
         // invalidate plane
         self.state = State::Invalid;
         Ok(())
@@ -280,18 +291,27 @@ fn compile_shader(context: &WebGl2, shader_type: u32, source: &str) -> Result<We
 
 fn build_snippet(ret: &mut String, expr: &ExprComplex) {
     match expr {
-        Expr::Variable => ret.push_str("z"),
+        Expr::Variable(var) => {
+            let str = match var {
+                Variable::C => "c",
+                Variable::Z => "z",
+            };
+            ret.push_str(str);
+        }
         Expr::Constant(ct) => {
             let Complex { re, im } = ct;
             ret.push_str(&format!("vec2({re},{im})"));
         }
         Expr::Function(fun, e) => {
             let fun_str = match fun {
-                FieldFunction::Neg => "-",
-                FieldFunction::Inv => "1.0/",
+                ComplexFunction::Re => "re",
+                ComplexFunction::Im => "im",
+                ComplexFunction::Abs => "abs",
             };
             ret.push_str(fun_str);
+            ret.push('(');
             build_snippet(ret, e);
+            ret.push(')');
         }
         Expr::Operator(op, lhs, rhs) => {
             let op_str = match op {

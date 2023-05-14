@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::{
     algebra::{Complex, Ring},
-    expression::{Expr, FieldFunction, FieldOperator},
+    expression::{ComplexFunction, Expr, FieldFunction, FieldOperator, Variable},
 };
 use nom::{
     branch::alt,
@@ -48,6 +48,19 @@ impl Parseable for FieldFunction {
     }
 }
 
+impl Parseable for ComplexFunction {
+    fn parse(i: &str) -> IResult<&str, Self>
+    where
+        Self: Sized,
+    {
+        alt((
+            value(ComplexFunction::Re, tag("Re")),
+            value(ComplexFunction::Im, tag("Im")),
+            value(ComplexFunction::Abs, tag("abs")),
+        ))(i)
+    }
+}
+
 impl Parseable for f32 {
     fn parse(i: &str) -> IResult<&str, Self>
     where
@@ -75,7 +88,10 @@ where
     F: Clone,
     O: Clone,
 {
-    value(Expr::Variable, char('z'))(i)
+    alt((
+        value(Expr::Variable(Variable::Z), char('z')),
+        value(Expr::Variable(Variable::C), char('c')),
+    ))(i)
 }
 
 fn term<T, F, O>(i: &str) -> IResult<&str, Expr<T, F, O>>
@@ -155,20 +171,24 @@ where
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use super::Parseable;
     use crate::{
         algebra::{Complex, Field},
-        expression::{Expr, FieldFunction, FieldOperator},
+        expression::{Expr, FieldFunction, FieldOperator, Variable},
     };
 
     fn parse_and_eval<T>(input: &str) -> T
     where
         T: Parseable + Field,
     {
+        let mut values = HashMap::new();
+        values.insert(Variable::Z, T::O);
         input
             .parse::<Expr<T, FieldFunction, FieldOperator>>()
             .unwrap()
-            .eval(&T::O)
+            .eval(&values)
     }
 
     #[test]

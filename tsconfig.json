@@ -1,9 +1,22 @@
 {
+    "extends": "@tsconfig/svelte/tsconfig.json",
     "compilerOptions": {
-        "noImplicitAny": true,
-        "target": "es5",
-        "module": "es6",
-        "allowJs": false,
-        "moduleResolution": "node",
+      "declaration": false,
+      "declarationMap": false,
+      "allowJs": false,
+      "checkJs": false,
+      "removeComments": true,
+      "strict": true,
+      "noImplicitAny": true,
+      "strictNullChecks": true,
+      "strictFunctionTypes": true,
+      "strictBindCallApply": true,
+      "strictPropertyInitialization": true,
+      "noImplicitThis": true,
+      "alwaysStrict": true,
+      "noUnusedLocals": true,
+      "noImplicitReturns": true,
+      "forceConsistentCasingInFileNames": true,
+      "baseUrl": "./",
     }
-}
+  }

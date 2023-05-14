@@ -4,7 +4,7 @@ version = "1.0.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/ffrancesc/complex"
-description = "Having fun by drawing complex-valued functions and fractals"
+description = "Having fun drawing complex-valued functions and fractals"
 
 [lib]
 path = "lib/lib.rs"
