@@ -1,23 +1,41 @@
 <script lang="ts">
-    import { DrawMode } from "../pkg";
-    import Plane from "./Plane.svelte";
+    import { DrawMode, JsComplex } from "../pkg";
+    import Plotter from "./Plotter.svelte";
     import Toggle from "./Toggle.svelte";
 
     const ZOOM_FACTOR: number = 1.3;
-    let plane: Plane;
-    let fractalSwitchEnabled = false;
-    let mainPlaneData = {
-        drawMode: DrawMode.ParameterStability,
-        // crazy one: z*z*z-1*i-0.21
-        // good one: (z*z+1)/(z*z-1)+z
-        functionStr: "z*z+c",
-        maxIter: 40,
-    };
 
-    $: mainPlaneData.drawMode = fractalSwitchEnabled
+    let mainPlotter: Plotter;
+    let fractalSwitchEnabled = false;
+    let drawMode = DrawMode.ParameterStability;
+    let maxIter = 40;
+    // crazy one: z*z*z-1*i-0.21
+    // good one: (z*z+1)/(z*z-1)+z
+    let functionStr = "z*z+c";
+
+    $: drawMode = fractalSwitchEnabled
         ? DrawMode.ParameterStability
         : DrawMode.DomainColouring;
 
+    let juliaPlotter: Plotter;
+    let juliaPlotterWidth: number;
+    let juliaPlotterHeight: number;
+
+    $: {
+        const r = 240 / 300;
+        const w = Math.min(300, windowWidth / 3);
+        const h = Math.min(240, windowHeight / 3);
+        if (w * r < h) {
+            juliaPlotterWidth = w;
+            juliaPlotterHeight = w * r;
+        } else {
+            juliaPlotterWidth = h / r;
+            juliaPlotterHeight = h;
+        }
+    }
+    function onPick(e: { detail: { complex: JsComplex } }) {
+        if (juliaPlotter) juliaPlotter.setParameterC(e.detail.complex);
+    }
     let windowWidth: number;
     let windowHeight: number;
 </script>
@@ -25,13 +43,16 @@
 <svelte:window bind:innerWidth={windowWidth} bind:innerHeight={windowHeight} />
 
 <main>
-    <Plane
-        bind:this={plane}
+    <Plotter
+        bind:this={mainPlotter}
         --left="0"
         --top="0"
         bind:width={windowWidth}
         bind:height={windowHeight}
-        {...mainPlaneData}
+        {maxIter}
+        {drawMode}
+        {functionStr}
+        on:pick={onPick}
     />
 
     <div class="fractal-container input">
@@ -40,7 +61,7 @@
         </div>
         {#if fractalSwitchEnabled}
             <input
-                bind:value={mainPlaneData.maxIter}
+                bind:value={maxIter}
                 type="range"
                 min="0"
                 max="300"
@@ -49,14 +70,27 @@
         {/if}
     </div>
 
+    {#if fractalSwitchEnabled}
+        <Plotter
+            bind:this={juliaPlotter}
+            --right="20px"
+            --top="140px"
+            width={juliaPlotterWidth}
+            height={juliaPlotterHeight}
+            drawMode={DrawMode.Julia}
+            {maxIter}
+            {functionStr}
+        />
+    {/if}
+
     <div class="zoom-container input">
-        <button on:click={() => plane.zoom(ZOOM_FACTOR)}>+</button>
-        <button on:click={() => plane.zoom(1 / ZOOM_FACTOR)}>−</button>
+        <button on:click={() => mainPlotter.zoom(ZOOM_FACTOR)}>+</button>
+        <button on:click={() => mainPlotter.zoom(1 / ZOOM_FACTOR)}>−</button>
     </div>
 
     <div class="function-container input">
         f(z)=<span
-            bind:textContent={mainPlaneData.functionStr}
+            bind:textContent={functionStr}
             class="function-inner"
             contenteditable
         />

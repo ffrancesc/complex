@@ -1,6 +1,6 @@
 #version 300 es
 
-precision highp float;
+precision mediump float;
 
 #define E_SQRT 1.64872
 #define TAU 6.28318530718
@@ -8,12 +8,12 @@ precision highp float;
 in vec2 st;
 out vec4 fragColor;
 
-uniform vec2 center;
-uniform vec2 scale;
-uniform int max_iter;
 uniform int draw_mode;
+uniform int max_iter;
 uniform vec2 resolution;
-
+uniform vec2 scale;
+uniform vec2 center;
+uniform vec2 parameter_c;
 
 vec3 complex2rgb(vec2 z) {
     float r = length(z);
@@ -81,6 +81,22 @@ vec3 iter_color(vec2 c) {
     } 
 }
 
+
+vec3 julia_color(vec2 z) {
+    int i = 0;
+    while(length(z) < 10.0 && ++i < max_iter) {
+        z = f(z, parameter_c);
+    }
+    if (i == max_iter) {
+        return vec3(0.0);
+    } else {
+        float smoothed = 0.0; // log(log(length(z))) / log(2.0);
+        float stab = clamp((float(i) - smoothed) / float(max_iter), 0.0, 1.0);
+        return vec3(stab, 0.0, stab);
+    } 
+}
+
+
 void main() {
     // vec3 avg = vec3(0.0);
     // for (int dx = -1; dx <= 1; ++dx)
@@ -94,8 +110,12 @@ void main() {
     vec3 rgb;
     if (draw_mode == 1) {
         rgb = domain_color(z);
-    } else {
+    } else if (draw_mode == 2) {
         rgb = iter_color(z);
+    } else if (draw_mode == 3) {
+        rgb = julia_color(z);
+    } else {
+        rgb = vec3(1.0, 0.0, 0.0);
     }
     fragColor = vec4(rgb, 1.0);
 }

@@ -6,7 +6,7 @@
     "scripts": {
         "clean": "rimraf target node_modules dist pkg",
         "build": "webpack",
-        "serve": "webpack serve --mode=development"
+        "serve": "webpack serve --mode development --allowed-hosts all"
     },
     "devDependencies": {
         "@types/node": "^18.15.11",

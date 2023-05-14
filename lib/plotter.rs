@@ -10,6 +10,13 @@ use web_sys::{WebGl2RenderingContext as WebGl2, WebGlProgram, WebGlShader, WebGl
 pub enum DrawMode {
     DomainColouring = 1,
     ParameterStability = 2,
+    Julia = 3,
+}
+
+#[wasm_bindgen]
+pub struct JsComplex {
+    pub re: f32,
+    pub im: f32,
 }
 
 enum State {
@@ -19,7 +26,7 @@ enum State {
 }
 
 #[wasm_bindgen]
-pub struct ComplexPlane {
+pub struct Plotter {
     ctx: WebGl2,
 
     state: State,
@@ -29,25 +36,27 @@ pub struct ComplexPlane {
     max_iter: i32,
     xscale: f32,
     center: Complex<f32>,
+    parameter_c: Complex<f32>,
 
     u_draw_mode: Option<WebGlUniformLocation>,
     u_max_iter: Option<WebGlUniformLocation>,
     u_resolution: Option<WebGlUniformLocation>,
     u_scale: Option<WebGlUniformLocation>,
     u_center: Option<WebGlUniformLocation>,
+    u_parameter_c: Option<WebGlUniformLocation>,
 
     last_dragged: Option<(i32, i32)>,
 }
 
 #[wasm_bindgen]
-impl ComplexPlane {
+impl Plotter {
     #[wasm_bindgen(constructor)]
     pub fn new(
         ctx: WebGl2,
         function: &str,
         draw_mode: DrawMode,
         max_iter: i32,
-    ) -> Result<ComplexPlane, JsValue> {
+    ) -> Result<Plotter, JsValue> {
         let buffer = ctx.create_buffer().ok_or("Failed to create buffer")?;
         ctx.bind_buffer(WebGl2::ARRAY_BUFFER, Some(&buffer));
 
@@ -74,6 +83,7 @@ impl ComplexPlane {
             max_iter,
             xscale: 1.0,
             center: Complex::O,
+            parameter_c: Complex::O,
 
             u_draw_mode: None,
             u_max_iter: None,
@@ -81,6 +91,7 @@ impl ComplexPlane {
             u_scale: None,
             u_center: None,
             last_dragged: None,
+            u_parameter_c: None,
         };
         res.set_function(function)?;
         Ok(res)
@@ -111,6 +122,15 @@ impl ComplexPlane {
     #[wasm_bindgen]
     pub fn set_resolution(&mut self, client_width: i32, client_height: i32) {
         self.ctx.viewport(0, 0, client_width, client_height);
+        self.state = State::Invalid;
+    }
+
+    #[wasm_bindgen]
+    pub fn set_parameter_c(&mut self, parameter_c: JsComplex) {
+        self.parameter_c = Complex {
+            re: parameter_c.re,
+            im: parameter_c.im,
+        };
         self.state = State::Invalid;
     }
 
@@ -153,11 +173,6 @@ impl ComplexPlane {
     }
 
     #[wasm_bindgen]
-    pub fn display_value_at(&self, x: i32, y: i32) -> String {
-        self.get_complex_at(x, y).to_string()
-    }
-
-    #[wasm_bindgen]
     pub fn draw(&mut self) {
         if let State::Loading | State::Valid = self.state {
             return;
@@ -177,6 +192,10 @@ impl ComplexPlane {
             .uniform2fv_with_f32_array(self.u_center.as_ref(), &[self.center.re, self.center.im]);
         self.ctx
             .uniform2fv_with_f32_array(self.u_scale.as_ref(), &[self.xscale, self.yscale()]);
+        self.ctx.uniform2fv_with_f32_array(
+            self.u_parameter_c.as_ref(),
+            &[self.parameter_c.re, self.parameter_c.im],
+        );
 
         self.ctx.clear_color(0.0, 0.0, 0.0, 1.0);
         self.ctx.clear(WebGl2::COLOR_BUFFER_BIT);
@@ -185,12 +204,13 @@ impl ComplexPlane {
         self.state = State::Valid;
     }
 
-    fn get_complex_at(&self, x: i32, y: i32) -> Complex<f32> {
+    #[wasm_bindgen]
+    pub fn get_complex_at(&self, x: i32, y: i32) -> JsComplex {
         let (x, y) = (x as f32, y as f32);
         let buffer_width = self.ctx.drawing_buffer_width() as f32;
         let buffer_height = self.ctx.drawing_buffer_height() as f32;
 
-        Complex {
+        JsComplex {
             re: 2.0 * (x / buffer_width - 0.5) * self.xscale - self.center.re,
             im: -2.0 * (y / buffer_height - 0.5) * self.yscale() - self.center.im,
         }
@@ -207,11 +227,11 @@ impl ComplexPlane {
         let vert_shader = compile_shader(
             &self.ctx,
             WebGl2::VERTEX_SHADER,
-            include_str!("shader/plane.vert"),
+            include_str!("shader/plotter.vert"),
         )?;
 
         // generate and compile fragment shader
-        let mut fragment_src = include_str!("shader/plane.frag").to_string();
+        let mut fragment_src = include_str!("shader/plotter.frag").to_string();
         let (begin_mark, end_mark) = ("/*BEGIN REPLACE*/", "/*END REPLACE*/");
         if let (Some(l), Some(r)) = (fragment_src.find(begin_mark), fragment_src.find(end_mark)) {
             let mut snippet = String::new();
@@ -237,6 +257,7 @@ impl ComplexPlane {
         self.u_max_iter = self.ctx.get_uniform_location(&program, "max_iter");
         self.u_draw_mode = self.ctx.get_uniform_location(&program, "draw_mode");
         self.u_resolution = self.ctx.get_uniform_location(&program, "resolution");
+        self.u_parameter_c = self.ctx.get_uniform_location(&program, "parameter_c");
         // invalidate plane
         self.state = State::Invalid;
         Ok(())
