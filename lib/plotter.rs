@@ -25,6 +25,8 @@ enum State {
     Valid,
 }
 
+const SUBSAMPLE_ROOT: i32 = 2; // subsample 4 points per pixel
+
 #[wasm_bindgen]
 pub struct Plotter {
     ctx: WebGl2,
@@ -44,6 +46,7 @@ pub struct Plotter {
     u_scale: Option<WebGlUniformLocation>,
     u_center: Option<WebGlUniformLocation>,
     u_parameter_c: Option<WebGlUniformLocation>,
+    u_subsample: Option<WebGlUniformLocation>,
 
     last_dragged: Option<(i32, i32)>,
 }
@@ -92,6 +95,7 @@ impl Plotter {
             u_center: None,
             last_dragged: None,
             u_parameter_c: None,
+            u_subsample: None,
         };
         res.set_function(function)?;
         Ok(res)
@@ -181,11 +185,11 @@ impl Plotter {
         self.ctx
             .uniform1i(self.u_draw_mode.as_ref(), self.draw_mode as i32);
         self.ctx.uniform1i(self.u_max_iter.as_ref(), self.max_iter);
-        self.ctx.uniform2iv_with_i32_array(
+        self.ctx.uniform2fv_with_f32_array(
             self.u_resolution.as_ref(),
             &[
-                self.ctx.drawing_buffer_width(),
-                self.ctx.drawing_buffer_height(),
+                self.ctx.drawing_buffer_width() as f32,
+                self.ctx.drawing_buffer_height() as f32,
             ],
         );
         self.ctx
@@ -196,7 +200,8 @@ impl Plotter {
             self.u_parameter_c.as_ref(),
             &[self.parameter_c.re, self.parameter_c.im],
         );
-
+        self.ctx
+            .uniform1i(self.u_subsample.as_ref(), SUBSAMPLE_ROOT);
         self.ctx.clear_color(0.0, 0.0, 0.0, 1.0);
         self.ctx.clear(WebGl2::COLOR_BUFFER_BIT);
 
@@ -258,6 +263,7 @@ impl Plotter {
         self.u_draw_mode = self.ctx.get_uniform_location(&program, "draw_mode");
         self.u_resolution = self.ctx.get_uniform_location(&program, "resolution");
         self.u_parameter_c = self.ctx.get_uniform_location(&program, "parameter_c");
+        self.u_subsample = self.ctx.get_uniform_location(&program, "n_subsample");
         // invalidate plane
         self.state = State::Invalid;
         Ok(())

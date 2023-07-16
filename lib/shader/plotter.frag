@@ -14,6 +14,7 @@ uniform vec2 resolution;
 uniform vec2 scale;
 uniform vec2 center;
 uniform vec2 parameter_c;
+uniform int n_subsample;
 
 vec3 complex2rgb(vec2 z) {
     float r = length(z);
@@ -96,18 +97,11 @@ vec3 julia_color(vec2 z) {
     } 
 }
 
-
-void main() {
-    // vec3 avg = vec3(0.0);
-    // for (int dx = -1; dx <= 1; ++dx)
-    // for (int dy = -1; dy <= 1; ++dy) {
-    //     vec2 dst = 0.0*vec2(dx,dy) / (2.0*resolution);
-    //     vec2 z = ((st + dst) * scale - center) * vec2(1.0, -1.0);
-    //     vec3 rgb = mode == 1? domain_color(z) : iter_color(z);
-    //     avg += rgb;
-    // }
+// Color pixel st in (-1, 1)^2
+vec3 color(vec2 st) {
     vec2 z = (st * scale - center) * vec2(1.0, -1.0);
-    vec3 rgb;
+    
+    vec3 rgb = vec3(0.0);
     if (draw_mode == 1) {
         rgb = domain_color(z);
     } else if (draw_mode == 2) {
@@ -115,7 +109,32 @@ void main() {
     } else if (draw_mode == 3) {
         rgb = julia_color(z);
     } else {
-        rgb = vec3(1.0, 0.0, 0.0);
+        rgb = vec3(1.0, 0.0, 0.0); // unreachable
     }
+    return rgb;
+}
+
+
+/** Return ith element after sapling n equidistant numbers between -1 and 1. 
+ *  n = 2, i = 0, 1, 2     ->  -1, 0, 1                  
+ *  n = 3  i = 0, 1, 2, 3  ->  -0.75, -0.25, 0.25, 0.75
+ */
+float subsample(int i, int n) {
+    return  (2.0*float(i) - (float(n-1))) / float(n);
+}
+
+void main() {
+    vec3 rgb = vec3(0.0); 
+    vec2 twice_resolution = 2.0 * resolution;
+    for (int i = 0; i < n_subsample; ++i) 
+    for (int j = 0; j < n_subsample; ++j) {
+        vec2 dst = vec2(
+            subsample(i, n_subsample), 
+            subsample(j, n_subsample)
+        ) / twice_resolution;        
+        rgb += color(st + dst);
+    }
+    rgb = rgb / float(n_subsample * n_subsample); // average
+
     fragColor = vec4(rgb, 1.0);
 }

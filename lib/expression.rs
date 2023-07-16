@@ -1,8 +1,5 @@
-use std::collections::HashMap;
-
-use wasm_bindgen::convert::IntoWasmAbi;
-
 use crate::{algebra::Complex, algebra::Field};
+use std::collections::HashMap;
 
 pub trait Function<T> {
     fn apply(&self, val: T) -> T;
